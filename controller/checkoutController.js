@@ -18,7 +18,6 @@ exports.index = (req, res) => {
 
 exports.payment = async (req, res) => {
   const token = await createToken(req.body);
-  console.log("line22");
   if (token.error) {
     //req.flash("danger", token.error);
     return res.redirect("/");
@@ -29,7 +28,6 @@ exports.payment = async (req, res) => {
   }
 
   const charge = await createCharge(token.id, 2000);
-  console.log(charge);
   if (charge && charge.status == "succeeded") {
     // req.flash("success", "Payment completed.");
     console.log("line36");
@@ -97,8 +95,8 @@ exports.checkoutSessions = async (req, res, next) => {
           quantity: 1,
         },
       ],
-      success_url: `http://localhost:3000/course/${req.params.courseId}`,
-      cancel_url: "http://localhost:3000/",
+      success_url: `${process.env.FRONTEND_URL}/course/${req.params.courseId}`,
+      cancel_url: `${process.env.FRONTEND_URL}`,
     });
     res.json({ url: session.url });
     next();
@@ -111,14 +109,12 @@ exports.checkoutSessions = async (req, res, next) => {
 };
 
 exports.createBookingCheckout = async (req, res, next) => {
+  //req.user.id = userId.
+  //req.params.courseId = courseId
 
-//req.user.id = userId.
-//req.params.courseId = courseId
-
-
-  let b= await User.findById(req.user.id);
-  let a =b.courses;
-  b.courses  = [...a,req.params.courseId]
+  let b = await User.findById(req.user.id);
+  let a = b.courses;
+  b.courses = [...a, req.params.courseId];
   let tour = await User.findByIdAndUpdate(req.user.id, b, {
     new: true,
     runValidators: true,

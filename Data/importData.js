@@ -2,6 +2,7 @@ const fs = require("fs");
 const mongoose = require("mongoose");
 const dotenv = require("dotenv");
 const { Course } = require("../model/courseModel");
+const {User} = require('../model/userModel')
 const db =
   "mongodb+srv://czarnikhil:Babajirocks12@cluster0.s2o7utp.mongodb.net/?retryWrites=true&w=majority";
 console.log(db);
@@ -19,7 +20,6 @@ const tours = JSON.parse(
 
 const importCourseData = async () => {
   try {
-    console.log("line 21 reaced");
     await Course.insertMany(tours);
     console.log("data loaded");
     process.exit();
@@ -36,8 +36,21 @@ const deleteAllCourseData = async () => {
   }
   process.exit();
 };
+const deleteAllUserData = async () => {
+  try {
+    await User.deleteMany();
+    console.log("data deleted");
+  } catch (err) {
+    console.log(err);
+  }
+  process.exit();
+};
 if (process.argv[2] === "--import") {
   importCourseData();
 } else if (process.argv[2] === "--delete") {
   deleteAllCourseData();
+}
+
+else if (process.argv[2] === "--deleteUser") {
+  deleteAllUserData();
 }

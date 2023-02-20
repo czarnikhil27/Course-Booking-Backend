@@ -16,7 +16,7 @@ const connect = async()=>{
 mongoose.connection.on("disconnected",()=>{
     console.log("disconnected")
 })
-const PORT = 8080;
+const PORT = process.env.PORT;
 app.listen(PORT,()=>{
     connect();
     console.log(`staring ${PORT}`)

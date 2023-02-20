@@ -9,13 +9,12 @@ const cookieOptions = {
 };
 async function signup(req, res, next) {
   try {
-    console.log("called")
     const newUser = await User.create({
       name: req.body.name,
       email: req.body.email,
       password: req.body.password,
-      passwordConfirm: req.body.passwordConfirm,
-      role:req.body.role
+      passwordConfirm: req.body.confirmPassword,
+      role: req.body.role,
     });
 
     const token = jwt.sign({ id: newUser._id }, process.env.JWT_SECRET, {
@@ -23,16 +22,18 @@ async function signup(req, res, next) {
     });
     newUser.password = undefined;
     res.cookie("jwt", token, cookieOptions);
-    res.status(201).json({
+    res.status(200).json({
       status: "success",
+      role: newUser.role,
       token,
       data: {
         user: newUser,
-        role:newUser.role,
+        role: newUser.role,
       },
     });
   } catch (err) {
-    res.status(404).json({
+    console.log(err);
+    res.status(301).json({
       status: "sdsdd",
       message: err,
     });
@@ -40,42 +41,40 @@ async function signup(req, res, next) {
 }
 
 async function login(req, res, next) {
-  try{
-  const { email, password } = req.body;
+  try {
+    const { email, password } = req.body;
 
-  //check if email and password exists
-  if (!email || !password) {
-    return res.status(400).json({
-      message: "please provide email and password",
+    //check if email and password exists
+    if (!email || !password) {
+      return res.status(400).json({
+        message: "please provide email and password",
+      });
+    }
+    // const user = User.findOne({email:email}).select('+password');
+    const user = await User.findOne({ email }).select("+password");
+    if (!user || !(await user.correctPassword(password, user.password))) {
+      return res.status(401).json({
+        message: "incorrect email or password",
+      });
+    }
+    //check if user exists and password exists
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+      expiresIn: process.env.JWT_EXPIRATION_TIME,
     });
-  }
-  // const user = User.findOne({email:email}).select('+password');
-  const user = await User.findOne({ email }).select("+password");
-  if (!user || !(await user.correctPassword(password, user.password))) {
-    return res.status(401).json({
-      message: "incorrect email or password",
+    cookieOptions.secure = false;
+    res.cookie("jwt", token, cookieOptions);
+    res.status(200).json({
+      role: user.role,
+      token,
     });
+  } catch (err) {
+    console.log(err);
   }
-  //check if user exists and password exists
-  const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRATION_TIME,
-  });
-  cookieOptions.secure = false;
-  res.cookie("jwt", token, cookieOptions);
-  res.status(200).json({
-    role:user.role,
-    token,
-  });
-}
-catch(err){
-  console.log(err)
-}
 }
 
 async function protect(req, res, next) {
   try {
     //1) get token and check if it exists
-    console.log("77called")
     let token = "";
     if (
       req.headers.authorization &&

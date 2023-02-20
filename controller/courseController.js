@@ -3,8 +3,10 @@ const { Course } = require("../model/courseModel");
 const path = require("path");
 const fs = require("fs");
 const { promisify } = require("util");
+const util = require("util");
 const { stringify } = require("querystring");
 const { User } = require("../model/userModel");
+const jwt = require("jsonwebtoken");
 class Api {
   constructor(query, queryString) {
     this.query = query;
@@ -18,17 +20,12 @@ class Api {
     queryStr = queryStr.replace(/\b(gte|gt|lte|lt)\b/g, (match) => `$${match}`); //g will work for multiple variables
 
     queryStr = JSON.parse(queryStr);
-    console.log("line21")
-    console.log(queryStr);
-    if(queryStr.filter && queryStr.filter.startsWith('subject'))
-    {
-     let a = queryStr.filter.split('_')[1];
-     console.log("line26")
-     console.log(a);
-     this.query = this.query.find({category:a});
+    if (queryStr.filter && queryStr.filter.startsWith("subject")) {
+      let a = queryStr.filter.split("_")[1];
+      this.query = this.query.find({ category: a });
+    } else {
+      this.query = this.query.find(queryStr);
     }
-    else{
-    this.query = this.query.find(queryStr);}
     return this;
   }
   sort() {
@@ -51,9 +48,8 @@ class Api {
 }
 async function getCourse(req, res, next) {
   try {
-    const f = new Api(Course, req.query).filter().sort();
-    const course = await f.query;
-
+    const f = new Api(Course, req.query).filter().sort().paginate();
+    const course = await f.query.populate("instructor");
     res.status(200).json({
       status: "success",
       length: course.length,
@@ -69,18 +65,25 @@ async function getCourse(req, res, next) {
 }
 async function getCourseById(req, res, next) {
   try {
-    console.log(req.params.courseId);
-
-    const val = await Course.findById({ _id: req.params.courseId });
-    console.log(val);
+    let val;
+    if (req.authorized === true)
+      val = await Course.findById({ _id: req.params.courseId })
+        .populate({ path: "instructor", select: "+video" })
+        .select("+video");
+    else
+      val = await Course.findById({ _id: req.params.courseId }).populate(
+        "instructor"
+      );
     res.status(200).json({
       status: "success",
       data: { val },
     });
   } catch (err) {
+    console.log(err);
     res.status(404).json({
       status: "Fail",
       message: "no data found",
+      data: err,
     });
   }
 }
@@ -101,43 +104,31 @@ const writeImage = (req, res) => {
 };
 async function createCourse(req, res, next) {
   try {
-    // console.log(`${__dirname}/public/images/${req.files.image.name}`);
-    console.log("line94");
-    console.log(req.files.video);
-    fs.writeFile(
-      `./public/images/${req.files.image.name}`,
-      req.files.image.data,
-      (err) => {
-        return res.status(404).json({
-          status: "fail",
-          message: "unscessful",
-        });
-      }
-    );
-    // fs.writeFile(
-    //   `./public/video/${req.files.video.name}`,
-    //   req.files.video.data,
-    //   (err) => {
-    //     return res.status(404).json({
-    //       status: "fail",
-    //       message: "unscessful",
-    //     });
-    //   }
-    // )
     const course = await Course.insertMany({
       name: req.body.name,
-      photo: `../public/images/${req.files.image.name}`,
-      instructor: req.params.instructorId,
+      photo: `images/${req.files.image.name}`,
+      video: `video/${req.files.video.name}`,
+      instructor: req.user.id,
       category: req.body.category,
       price: req.body.price,
       summary: req.body.summary,
     });
-    res.status(201).json({
+    await fs.promises.writeFile(
+      `./public/images/${req.files.image.name}`,
+      req.files.image.data
+    );
+    await fs.promises.writeFile(
+      `./public/video/${req.files.video.name}`,
+      req.files.video.data
+    );
+
+    res.status(200).json({
       status: "true",
       message: "data inserted",
       course,
     });
   } catch (err) {
+    console.log(err);
     res.status(500).json({
       status: "fail",
       message: "please enter all the values",
@@ -186,22 +177,55 @@ async function streamVideo(req, res, next) {
   }
 }
 async function getVideo(req, res, next) {
-  const videoPath = path.resolve("public/video/1.mp4");
+ console.log(req.params.courseId);
+ const course = await Course.findById(req.params.courseId).select('+video')
+  const videoPath = path.resolve(`public/video/${course.video}`);
   res.sendFile(videoPath);
 }
 
 async function getUserCourse(req, res, next) {
   try {
-    console.log("called");
-    console.log(req.user.id);
-    let course = await User.findById(req.user.id).populate('courses');
-    course=course.courses;
+    let course = await User.findById(req.user.id)
+      .populate({ path: "courses", select: "+video" })
+      .select("+video");
+    course = course.courses;
     res.status(200).json({
-      data:course
+      data: course,
     });
   } catch (err) {
-    console.log(err)
+    console.log(err);
     res.status(404).json({ message: "not found" });
+  }
+}
+async function boughtCourse(req, res, next) {
+  try {
+    //1) get token and check if it exists
+    let course = req.params.courseId;
+    let token = "";
+    if (
+      req.headers.authorization &&
+      req.headers.authorization.startsWith("Bearer")
+    ) {
+      token = req.headers.authorization.split(" ")[1];
+    }
+    if (!token) {
+      return next();
+    }
+    //2) verify token
+    const decoded = await jwt.verify(token, process.env.JWT_SECRET);
+    //3) check if user still exists
+    const currentUser = await User.findById(decoded.id);
+    if (!currentUser) {
+      return next();
+    }
+  
+    if (currentUser.courses.find(obj=>obj._id==course)) {
+      req.authorized = true;
+    }
+
+    return next();
+  } catch (err) {
+    return res.status(500).json({ message: err });
   }
 }
 module.exports = {
@@ -212,4 +236,5 @@ module.exports = {
   getCourseById,
   getVideo,
   getUserCourse,
+  boughtCourse,
 };

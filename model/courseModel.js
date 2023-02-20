@@ -9,7 +9,11 @@ const courseSchema = new mongoose.Schema({
     unique: true,
   },
   photo: String,
-  instructor: [{ type: mongoose.Schema.ObjectId, ref: "User" }],
+  video:{
+    type:String,
+    select:false
+  },
+  instructor: { type: mongoose.Schema.ObjectId, ref: "Users" },
   category: {
     type: String,
     enum: ["finance", "science", "computer", "health", "business"],

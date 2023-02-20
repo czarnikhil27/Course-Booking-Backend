@@ -14,6 +14,7 @@ const courseRoute = require("./route/courseRoute");
 const checkoutRoute = require("./route/checkoutRoute");
 const fs = require("fs");
 const fileupload = require("express-fileupload");
+const compression = require('compression')
 app.use(helmet());
 //body parser
 app.use(express.json({ limit: "10kb" }));
@@ -22,7 +23,7 @@ app.use(moongoSanitize());
 
 //data sanitize for HTML XSS
 app.use(xss());
-
+app.use(compression())
 //parameter pollution prevention
 app.use(
   hpp({

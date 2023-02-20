@@ -1,7 +1,7 @@
 const jwt = require("jsonwebtoken");
 const { User } = require("../model/userModel.js");
 const { sendEmail } = require("../utils/email.js");
-
+const  crypto  = require("crypto");
 const cookieOptions = {
   expires: new Date(Date.now() + 90 * 24 * 50 * 60 * 1000),
   secure: true, //cookie sent on encryption connection - https
@@ -190,4 +190,30 @@ async function updatePassword(req, res, next) {
     });
   }
 }
-module.exports = { signup, login, protect, forgotPassword, updatePassword };
+async function resetPassword(req, res, next) {
+  console.log("194called")
+  //1) get the user based on the token
+  const hashedToken = crypto
+    .createHash("sha256")
+    .update(req.params.token)
+    .digest("hex");
+  const user = await User.findOne({ passwordResetToken: hashedToken,passwordResetExpires:{$gt:Date.now()} });
+
+  //2 if token has not expired, there is user,set the new password
+  if(!user){
+    res.status(401).json({message:"token expired"})
+  }
+  user.password = req.body.password;
+  user.passwordConfirm = req.body.passwordConfirm;
+  user.passwordResetToken = undefined;
+  user.passwordResetExpires = undefined;
+  await user.save();
+  const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+    expiresIn: process.env.JWT_EXPIRATION_TIME,
+  });
+  res.status(200).json({
+    role: user.role,
+    token,
+  });
+}
+module.exports = { signup, login, protect, forgotPassword, updatePassword,resetPassword };

@@ -3,11 +3,11 @@ async function sendEmail(options) {
   // 1) create transported - define which service to use
 
       const transporter = nodeMailer.createTransport({
-          host: "smtp.mailtrap.io",
-          port: 2525,
+          host: process.env.MAIL_HOST,
+          port: process.env.MAIL_PORT,
           auth: {
-              user: "e74e9135149332",
-              pass: "3a6dcff001403d"
+              user: process.env.MAIL_USER,
+              pass: process.env.MAIL_PASSWORD
     }
       })
 //   const transporter = nodeMailer.createTransport({
@@ -20,7 +20,7 @@ async function sendEmail(options) {
   // 2) define email options
 
   const mailOptions = {
-    from: "Nikhil Jha <czarnikhil27@gmail.com>",
+    from: `Nikhil Jha ${MY_MAIL}`,
     to: options.email,
     subject: options.subject,
     text: options.message,
